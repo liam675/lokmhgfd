@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Key System Status</title>
+    <style>
+        body { background:#0d0d0d; color:white; font-family:Arial; padding:20px; }
+        .box { padding:20px; background:#1a1a1a; border-radius:10px; width:400px; }
+    </style>
+</head>
+<body>
+    <h2>Key System</h2>
+    <div class="box" id="content">Loading…</div>
+
+<script type="module">
+
+import { kv } from "@vercel/kv";
+
+/* ---------------------- INITIALIZE STORAGE ----------------------- */
+
+async function init() 
+{
+    if (!(await kv.get("licenses")))
+        await kv.set("licenses", {});
+
+    if (!(await kv.get("heartbeats")))
+        await kv.set("heartbeats", {});
+
+    document.getElementById("content").innerHTML = "System Online.";
+}
+init();
+
+
+/* ------------------------- API HANDLERS -------------------------- */
+
+export async function POST(req) {
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    const data = await req.json();
+    const licenses = await kv.get("licenses");
+    const heartbeats = await kv.get("heartbeats");
+
+    /* --------- VERIFY KEY --------- */
+    if (path === "/api/verify") {
+        const key = data.key ?? "";
+
+        if (!licenses[key]) {
+            return new Response(JSON.stringify({ ok:false, valid:false }), { status:200 });
+        }
+
+        return new Response(JSON.stringify({ ok:true, valid:true }), { status:200 });
+    }
+
+    /* --------- HEARTBEAT ---------- */
+    if (path === "/api/heartbeat") {
+
+        if (!licenses[data.key]) {
+            return new Response(JSON.stringify({ ok:false, error:"invalid_key" }), { status:200 });
+        }
+
+        heartbeats[data.user] = {
+            key: data.key,
+            last: Date.now()
+        };
+
+        await kv.set("heartbeats", heartbeats);
+
+        return new Response(JSON.stringify({ ok:true, saved:true }), { status:200 });
+    }
+
+    return new Response("Invalid endpoint");
+}
+
+</script>
+
+</body>
+</html>
