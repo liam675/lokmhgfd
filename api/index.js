@@ -1,28 +1,46 @@
 import { kv } from "@vercel/kv";
 
 export default async function handler(req, res) {
+    let body = {};
+
+    try {
+        // Parse JSON body safely
+        if (req.method === "POST") {
+            const raw = await new Promise((resolve) => {
+                let data = "";
+                req.on("data", chunk => data += chunk);
+                req.on("end", () => resolve(data));
+            });
+
+            body = raw ? JSON.parse(raw) : {};
+        }
+    } catch (err) {
+        return res.status(400).json({ ok: false, error: "invalid_json" });
+    }
+
     const url = req.url;
 
-    let licenses = await kv.get("licenses");
-    let heartbeats = await kv.get("heartbeats");
+    // Load KV
+    let licenses = await kv.get("licenses") || {};
+    let heartbeats = await kv.get("heartbeats") || {};
 
-    if (!licenses) { await kv.set("licenses", {}); licenses = {}; }
-    if (!heartbeats) { await kv.set("heartbeats", {}); heartbeats = {}; }
-
-    // Verify
+    /* ---------------- VERIFY ---------------- */
     if (url.startsWith("/api/verify")) {
-        const { key } = req.body || {};
+        const key = body.key;
 
         if (!key)
             return res.json({ ok: false, error: "missing_key" });
 
-        const valid = !!licenses[key];
-        return res.json({ ok: true, valid });
+        return res.json({
+            ok: true,
+            valid: Boolean(licenses[key])
+        });
     }
 
-    // Heartbeat
+    /* --------------- HEARTBEAT --------------- */
     if (url.startsWith("/api/heartbeat")) {
-        const { key, user } = req.body || {};
+        const key = body.key;
+        const user = body.user;
 
         if (!key || !user)
             return res.json({ ok: false, error: "missing_fields" });
@@ -30,11 +48,16 @@ export default async function handler(req, res) {
         if (!licenses[key])
             return res.json({ ok: false, error: "invalid_key" });
 
-        heartbeats[user] = { key, last: Date.now() };
+        heartbeats[user] = {
+            key,
+            last: Date.now()
+        };
+
         await kv.set("heartbeats", heartbeats);
 
         return res.json({ ok: true, saved: true });
     }
 
+    /* --------------- UNKNOWN ---------------- */
     return res.status(404).json({ ok: false, error: "not_found" });
 }
