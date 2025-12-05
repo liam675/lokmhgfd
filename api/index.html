@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script type="module">
+import { kv } from "https://esm.sh/@vercel/kv";
+
+export default async function handler(req, res) {
+    const url = req.url;
+
+    let licenses = await kv.get("licenses") ?? {};
+    let heartbeats = await kv.get("heartbeats") ?? {};
+
+    /* VERIFY */
+    if (url.includes("/api/verify")) {
+        const body = await req.json();
+        const key = body.key;
+
+        return res.json({
+            ok: true,
+            valid: !!licenses[key]
+        });
+    }
+
+    /* HEARTBEAT */
+    if (url.includes("/api/heartbeat")) {
+        const body = await req.json();
+        const key = body.key;
+        const user = body.user;
+
+        if (!licenses[key]) {
+            return res.json({ ok: false, error: "invalid_key" });
+        }
+
+        heartbeats[user] = { key, last: Date.now() };
+        await kv.set("heartbeats", heartbeats);
+
+        return res.json({ ok: true });
+    }
+
+    return res.json({ ok: false, error: "route_not_found" });
+}
+</script>
+</body>
+</html>
