@@ -1,7 +1,7 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/api/verify", "dest": "/index.js" },
-    { "src": "/api/heartbeat", "dest": "/index.js" }
+    { "src": "/api/verify", "dest": "/api/index.js" },
+    { "src": "/api/heartbeat", "dest": "/api/index.js" }
   ]
 }
